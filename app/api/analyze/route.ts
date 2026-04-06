@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
 
-export const maxDuration = 60;
+/** Vercel Pro: up to 300s. Hobby caps serverless at ~10s — upgrade or use shorter docs. */
+export const maxDuration = 300;
 export const runtime = "nodejs";
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim();

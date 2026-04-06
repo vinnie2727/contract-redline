@@ -3,7 +3,8 @@
 import type { ReactNode } from "react";
 import { useState, useRef, useEffect } from "react";
 
-const ANALYZE_TIMEOUT_MS = 180_000;
+/** Slightly above Vercel `maxDuration` (300s) so the browser does not abort first */
+const ANALYZE_TIMEOUT_MS = 330_000;
 
 /** Must match `basePath` in next.config.ts */
 const publicBasePath = "/SMUD-contract-analyzer";
@@ -175,6 +176,13 @@ export default function Home() {
         signal: controller.signal,
       });
       const rawText = await res.text();
+
+      if (res.status === 504 || rawText.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+        throw new Error(
+          "Vercel stopped the analysis because it ran past the server time limit (504). Deploy the latest code (5 min limit) and redeploy. If you are on Vercel Hobby, functions are capped at ~10s — use Pro for long AI jobs, or try a smaller document."
+        );
+      }
+
       let data: { error?: string } & Partial<Analysis>;
       try {
         data = JSON.parse(rawText) as { error?: string } & Partial<Analysis>;
