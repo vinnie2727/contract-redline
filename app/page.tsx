@@ -5,8 +5,8 @@ import { useState, useRef, useEffect } from "react";
 
 const ANALYZE_TIMEOUT_MS = 180_000;
 
-/** Inlined at build; must match next.config `basePath` for subpath deploys */
-const publicBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+/** Must match `basePath` in next.config.ts */
+const publicBasePath = "/SMUD-contract-analyzer";
 
 type Severity = "Critical" | "High" | "Medium" | "Low";
 type Action =
