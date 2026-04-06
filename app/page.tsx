@@ -77,10 +77,38 @@ const RISK_BAR: Record<Severity, string> = {
   Low: "w-1/4 bg-green-500",
 };
 
+type WorkflowTab = "upload" | "overview" | "summary" | "issues" | "risk";
+
+function previewText(text: string, max = 160): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max).trim()}…`;
+}
+
+/** Smooth estimate 0–90% from elapsed seconds (asymptotic — not real server progress). */
+function estimatedProgressPercent(seconds: number): number {
+  const raw = 100 * (1 - Math.exp(-seconds / 38));
+  return Math.min(90, Math.round(raw));
+}
+
+const LOADING_STAGES: { s: number; label: string }[] = [
+  { s: 0, label: "Preparing and sending your file…" },
+  { s: 10, label: "Extracting text from the document…" },
+  { s: 28, label: "Calling the model — usually the longest step…" },
+  { s: 55, label: "Generating structured findings…" },
+  { s: 95, label: "Almost there — finishing the report…" },
+];
+
+function loadingStageLabel(seconds: number): string {
+  let label = LOADING_STAGES[0]!.label;
+  for (const stage of LOADING_STAGES) {
+    if (seconds >= stage.s) label = stage.label;
+  }
+  return label;
+}
+
 export default function Home() {
-  const [tab, setTab] = useState<"upload" | "summary" | "issues" | "risk">(
-    "upload"
-  );
+  const [tab, setTab] = useState<WorkflowTab>("upload");
   const [redlineFile, setRedlineFile] = useState<File | null>(null);
   const [baselineFile, setBaselineFile] = useState<File | null>(null);
   const [showBaseline, setShowBaseline] = useState(false);
@@ -164,7 +192,7 @@ export default function Home() {
         throw new Error(data.error || `Request failed (${res.status})`);
       }
       setAnalysis(data as Analysis);
-      setTab("summary");
+      setTab("overview");
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") {
         setError(
@@ -197,8 +225,9 @@ export default function Home() {
     });
   }
 
-  const navItems = [
+  const navItems: { key: WorkflowTab; label: string; icon: string }[] = [
     { key: "upload", label: "Upload & Analyze", icon: "↑" },
+    { key: "overview", label: "Results overview", icon: "◫" },
     { key: "summary", label: "Executive Summary", icon: "◎" },
     { key: "issues", label: "Issue Register", icon: "≡" },
     { key: "risk", label: "Risk Summary", icon: "◈" },
@@ -207,6 +236,14 @@ export default function Home() {
   const filteredIssues = (analysis?.issues || []).filter(
     (i) => filter === "All" || i.severity === filter
   );
+
+  const loadPct = loading ? estimatedProgressPercent(loadingSeconds) : 0;
+  const loadStage = loading ? loadingStageLabel(loadingSeconds) : "";
+  const ringSize = 132;
+  const ringStroke = 9;
+  const ringR = (ringSize - ringStroke) / 2;
+  const ringC = 2 * Math.PI * ringR;
+  const ringOffset = ringC * (1 - loadPct / 100);
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100 relative">
@@ -217,19 +254,66 @@ export default function Home() {
           aria-live="polite"
         >
           <div className="mx-4 w-full max-w-md rounded-xl border border-slate-200 bg-white px-8 py-7 text-center shadow-xl">
-            <div
-              className="mx-auto mb-4 h-11 w-11 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
-              role="status"
-            />
+            <div className="relative mx-auto mb-5" style={{ width: ringSize, height: ringSize }}>
+              <svg
+                width={ringSize}
+                height={ringSize}
+                className="absolute inset-0 -rotate-90"
+                aria-hidden
+              >
+                <circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={ringR}
+                  fill="none"
+                  stroke="#e2e8f0"
+                  strokeWidth={ringStroke}
+                />
+                <circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={ringR}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth={ringStroke}
+                  strokeLinecap="round"
+                  strokeDasharray={ringC}
+                  strokeDashoffset={ringOffset}
+                  className="transition-[stroke-dashoffset] duration-700 ease-out"
+                />
+              </svg>
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"
+                aria-live="polite"
+              >
+                <span className="text-2xl font-black tabular-nums text-slate-800">
+                  {loadPct}
+                  <span className="text-base font-bold text-slate-500">%</span>
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mt-0.5">
+                  est.
+                </span>
+              </div>
+            </div>
             <p className="text-sm font-semibold text-slate-800">
               Analyzing contract…
             </p>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Uploading your file, extracting text, then calling the model. Large
-              PDFs can take a minute or two—the window stays open until it
-              finishes or times out.
+            <p className="mt-2 text-xs font-medium text-blue-600 leading-snug min-h-[2.5rem] px-1">
+              {loadStage}
             </p>
-            <p className="mt-4 font-mono text-xs tabular-nums text-slate-400">
+            <div className="mt-4 h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-[width] duration-700 ease-out"
+                style={{ width: `${loadPct}%` }}
+              />
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+              Progress is an <span className="font-medium text-slate-500">estimate</span>{" "}
+              from elapsed time — the server doesn&apos;t stream live steps. Large
+              files or complex contracts can take several minutes (timeout{" "}
+              {ANALYZE_TIMEOUT_MS / 60_000} min).
+            </p>
+            <p className="mt-3 font-mono text-xs tabular-nums text-slate-500">
               {loadingSeconds}s elapsed
             </p>
           </div>
@@ -255,8 +339,10 @@ export default function Home() {
           {navItems.map((item) => (
             <button
               key={item.key}
-              onClick={() => setTab(item.key as typeof tab)}
-              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-all border-l-2 ${tab === item.key ? "text-white border-blue-500 bg-white/10" : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5"}`}
+              type="button"
+              onClick={() => setTab(item.key)}
+              disabled={item.key === "overview" && !analysis}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-all border-l-2 disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-transparent ${tab === item.key ? "text-white border-blue-500 bg-white/10" : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5"}`}
             >
               <span className="w-3.5 text-center text-xs">{item.icon}</span>
               {item.label}
@@ -297,15 +383,19 @@ export default function Home() {
             <div className="text-slate-800 font-bold text-sm">
               {tab === "upload"
                 ? "Contract Redline Analyzer"
-                : tab === "summary"
-                  ? "Executive Summary"
-                  : tab === "issues"
-                    ? "Issue Register"
-                    : "Risk Summary"}
+                : tab === "overview"
+                  ? "Results overview"
+                  : tab === "summary"
+                    ? "Executive Summary"
+                    : tab === "issues"
+                      ? "Issue Register"
+                      : "Risk Summary"}
             </div>
             <div className="text-slate-400 text-xs mt-0.5">
               {tab === "upload"
                 ? "Upload the supplier redlined contract to begin analysis"
+                : tab === "overview"
+                  ? "Summary of each report section — open one below for full detail"
                 : analysis
                   ? `${ctx.supplier || ""}${ctx.equipment ? " · " + ctx.equipment : ""}`.trim()
                   : "Run analysis first"}
@@ -320,6 +410,160 @@ export default function Home() {
         </div>
 
         <div className="p-7 flex-1">
+          {/* RESULTS OVERVIEW — first screen after analyze */}
+          {tab === "overview" &&
+            (!analysis ? (
+              <Empty icon="◫" label="No results yet" />
+            ) : (
+              <div className="max-w-5xl mx-auto space-y-6">
+                <div className="rounded-xl border border-green-200 bg-green-50/80 px-5 py-4">
+                  <p className="text-sm font-semibold text-green-900">
+                    Analysis complete
+                  </p>
+                  <p className="text-xs text-green-800/90 mt-1 leading-relaxed">
+                    Below is a short summary of each part of the report. Use{" "}
+                    <span className="font-medium">Open section</span> to read
+                    the full Executive Summary, every issue, or the full risk
+                    breakdown.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
+                  {/* Card: Executive summary */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                      1 · Executive summary
+                    </h3>
+                    <p className="text-sm font-bold text-slate-800 mb-2">
+                      Overall risk:{" "}
+                      <span
+                        className={
+                          risk === "Critical"
+                            ? "text-red-600"
+                            : risk === "High"
+                              ? "text-orange-600"
+                              : risk === "Medium"
+                                ? "text-yellow-700"
+                                : "text-green-600"
+                        }
+                      >
+                        {risk}
+                      </span>
+                    </p>
+                    <p className="text-xs text-slate-600 leading-relaxed flex-1">
+                      {previewText(
+                        analysis.executiveSummary?.supplierPosture || ""
+                      )}
+                    </p>
+                    <ul className="mt-3 text-xs text-slate-500 space-y-1 border-t border-slate-100 pt-3">
+                      <li>
+                        • Top issues listed:{" "}
+                        {(analysis.executiveSummary?.top5Issues || []).length}
+                      </li>
+                      <li>
+                        • Recommended actions:{" "}
+                        {
+                          (analysis.executiveSummary?.recommendedActions || [])
+                            .length
+                        }
+                      </li>
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => setTab("summary")}
+                      className="mt-4 w-full text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-lg py-2"
+                    >
+                      Open executive summary →
+                    </button>
+                  </div>
+                  {/* Card: Issues */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                      2 · Issue register
+                    </h3>
+                    <p className="text-2xl font-black text-slate-800 mb-1">
+                      {analysis.issues?.length ?? 0}
+                    </p>
+                    <p className="text-xs text-slate-500 mb-3">issues flagged</p>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {(["Critical", "High", "Medium", "Low"] as Severity[]).map(
+                        (s) => (
+                          <span
+                            key={s}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded border ${SEV_COLORS[s]}`}
+                          >
+                            {s} {sevCounts[s]}
+                          </span>
+                        )
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                      Sample
+                    </p>
+                    <ul className="text-xs text-slate-600 space-y-1.5 flex-1">
+                      {(analysis.issues || []).slice(0, 4).map((i) => (
+                        <li key={i.issueId} className="leading-snug">
+                          <span className="text-slate-400">{i.clauseReference}</span>{" "}
+                          {previewText(i.clauseTitle, 72)}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => setTab("issues")}
+                      className="mt-4 w-full text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-lg py-2"
+                    >
+                      Open issue register →
+                    </button>
+                  </div>
+                  {/* Card: Risk */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                      3 · Risk summary
+                    </h3>
+                    <ul className="text-xs text-slate-600 space-y-2 flex-1">
+                      <li>
+                        • Risk by category:{" "}
+                        <span className="font-semibold text-slate-800">
+                          {(analysis.riskSummary?.byCategory || []).length}
+                        </span>{" "}
+                        categories
+                      </li>
+                      <li>
+                        • Tradable issues:{" "}
+                        <span className="font-semibold text-slate-800">
+                          {(analysis.riskSummary?.tradableIssues || []).length}
+                        </span>
+                      </li>
+                      <li>
+                        • Legal escalation items:{" "}
+                        <span className="font-semibold text-slate-800">
+                          {(analysis.riskSummary?.legalEscalation || []).length}
+                        </span>
+                      </li>
+                      <li>
+                        • Business decisions:{" "}
+                        <span className="font-semibold text-slate-800">
+                          {(analysis.riskSummary?.businessDecisions || []).length}
+                        </span>
+                      </li>
+                    </ul>
+                    {analysis.riskSummary?.negotiationNotes ? (
+                      <p className="text-xs text-slate-600 leading-relaxed mt-3 pt-3 border-t border-slate-100">
+                        {previewText(analysis.riskSummary.negotiationNotes, 120)}
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setTab("risk")}
+                      className="mt-4 w-full text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-lg py-2"
+                    >
+                      Open risk summary →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
           {/* UPLOAD */}
           {tab === "upload" && (
             <div>
