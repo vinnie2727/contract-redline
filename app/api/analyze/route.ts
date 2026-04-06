@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
-import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
-import WordExtractor from "word-extractor";
 
 export const maxDuration = 60;
+export const runtime = "nodejs";
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim();
 const anthropicClient = anthropicApiKey
   ? new Anthropic({ apiKey: anthropicApiKey })
   : null;
-const wordExtractor = new WordExtractor();
 
+/** Lazy-load parsers so a Vercel bundle/init issue returns JSON instead of an HTML 500. */
 async function pdfBufferToText(buffer: Buffer): Promise<string> {
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
@@ -62,7 +61,9 @@ function resolveExtension(filename: string, buffer: Buffer): string {
 }
 
 async function legacyDocBufferToText(buffer: Buffer): Promise<string> {
-  const doc = await wordExtractor.extract(buffer);
+  const WordExtractor = (await import("word-extractor")).default;
+  const extractor = new WordExtractor();
+  const doc = await extractor.extract(buffer);
   const parts = [
     doc.getBody(),
     doc.getFootnotes(),
@@ -75,6 +76,7 @@ async function legacyDocBufferToText(buffer: Buffer): Promise<string> {
 }
 
 async function docxBufferToText(buffer: Buffer): Promise<string> {
+  const mammoth = (await import("mammoth")).default;
   const { value } = await mammoth.extractRawText({ buffer });
   const text = (value || "").trim();
   if (!text) throw new Error("No text could be extracted from this DOCX file");
@@ -258,7 +260,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "ANTHROPIC_API_KEY is missing. Add the full key to .env.local in the contract-redline folder and restart the dev server.",
+            "ANTHROPIC_API_KEY is missing. Locally: add it to .env.local and restart npm run dev. On Vercel: Project → Settings → Environment Variables → add ANTHROPIC_API_KEY for Production, then Redeploy.",
         },
         { status: 500 }
       );
@@ -340,4 +342,13 @@ ${baselineContent ? `BASELINE CONTRACT:\n${baselineContent}\n\n` : ""}REDLINED C
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+/** Quick check that the route is up (and whether the API key is configured). */
+export async function GET() {
+  const hasKey = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  return NextResponse.json({
+    ok: true,
+    anthropicConfigured: hasKey,
+  });
 }

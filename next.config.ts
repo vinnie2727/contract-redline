@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     ];
   },
   serverExternalPackages: [
+    "@anthropic-ai/sdk",
     "mammoth",
     "word-extractor",
     "pdf-parse",

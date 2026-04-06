@@ -151,10 +151,13 @@ export default function Home() {
       try {
         data = JSON.parse(rawText) as { error?: string } & Partial<Analysis>;
       } catch {
+        const looksLikeHtml = rawText.trimStart().startsWith("<");
         throw new Error(
           res.ok
             ? "Server returned invalid JSON."
-            : `Server error (${res.status}). If the page is on the wrong port, open the URL from the terminal where npm run dev is running.`
+            : looksLikeHtml
+              ? `Server error (${res.status}): the API returned an HTML page instead of JSON — often a crash, cold-start failure, or request too large. In Vercel: open this project → Logs (or Deployments → failed build). Also confirm ANTHROPIC_API_KEY is set for Production.`
+              : `Server error (${res.status}). ${rawText.slice(0, 200)}`
         );
       }
       if (!res.ok || data.error) {
