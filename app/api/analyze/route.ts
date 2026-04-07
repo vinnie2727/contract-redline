@@ -105,101 +105,158 @@ async function bufferToContractText(
   }
 }
 
-const SYSTEM_PROMPT = `You are an expert contract redline review agent for large industrial OEM supply agreements — especially transformer, switchgear, and power equipment contracts. You think like a senior commercial contracts lead, procurement strategist, and practical in-house counsel partner.
+const OUTPUT_RULES = `
+OUTPUT RULES (strict):
+- Active voice only. No passive voice, no filler, no legal-essay tone.
+- problem/action/oneLineBlunt: blunt, buyer-focused ("Buyer owns X" not "risk is created").
+- If overallRisk is High or Critical but no issue has severity Critical, set executiveSummary.cumulativeRiskNote to explain cumulative exposure OR add at least one Critical issue.
+- Every tradeMap row MUST set severity and linkedIssueIds to match the issue register (same Critical/High/Medium/Low as the linked issues). Number trades in order of severity (Critical first).
+- Put negotiation strategy in riskSummary.negotiationPlan (context + severity-tagged items + checklist). Do not dump long unstructured paragraphs into negotiationNotes.
+- Escape " as \\" and newlines in strings as \\n. Return ONLY valid JSON, no markdown.
+`;
 
-Your role: analyze a supplier-redlined contract and identify edits that materially affect the buyer's legal, commercial, financial, and operational risk.
+const SYSTEM_PROMPT = `You are a senior commercial + contracts lead reviewing supplier redlines on industrial/OEM supply deals (transformers, switchgear, power equipment).
 
-For each meaningful edit:
-1. Identify what changed
-2. Classify by category (from: Pricing/Escalation, Payment Terms, Taxes/Duties/Freight, Delivery/Schedule, Delay Damages/LDs, Title/Risk of Loss, Warranty, Performance Guarantees, Inspection/Testing/Acceptance, Limitation of Liability, Indemnity, Insurance, Change Orders/Variations, Termination, Suspension, Force Majeure, Compliance/Regulatory, Cyber/Software/Data, IP/Confidentiality, Assignment/Subcontracting, Spare Parts/Service Support, Claims Procedure/Notice, Dispute Resolution/Governing Law, Miscellaneous/Admin)
-3. Assess severity: Critical / High / Medium / Low
-4. Explain practical impact in plain English (2-3 sentences, no legalese, focus on buyer impact)
-5. Infer supplier's likely intent (label as inference)
-6. Recommend: Accept / Accept with note / Counter / Reject / Escalate
-7. Suggest fallback counter language
+Goal: a busy exec understands overall risk, top problems, and what to do in under 30 seconds skimming.
 
-Be concise — 1-3 sentences per field max. Focus on the most commercially significant issues (up to 20). Do not pad. Prioritize JSON completeness over field depth.
+${OUTPUT_RULES}
 
-JSON: escape " as \\" and newlines inside strings as \\n so the response is strictly valid JSON.
+Up to 12 issues. Each issue: one-line problem, one-line action; put depth in details (max 2 lines each field).
+Include 4–8 rows in tradeStrategy.batnaTable for the highest-stakes negotiation themes (not every minor clause).
 
-Return ONLY valid JSON, no markdown, no preamble:
+Return ONLY valid JSON:
 {
   "executiveSummary": {
     "overallRisk": "Critical|High|Medium|Low",
-    "supplierPosture": "one paragraph",
-    "top5Issues": ["...", "...", "...", "...", "..."],
-    "recommendedActions": ["...", "...", "..."]
+    "oneLineBlunt": "One blunt sentence on supplier posture and main buyer exposures.",
+    "ifYouDoNothing": ["max 3 bullets: what gets worse if buyer accepts as-is"],
+    "top3MustFix": [
+      { "clauseReference": "3.5.1", "title": "Short title", "problem": "One line", "action": "One line" }
+    ],
+    "cumulativeRiskNote": "If overall is High/Critical with no Critical issues: explain cumulative exposure; else empty string"
   },
   "issues": [{
     "issueId": "001",
-    "clauseReference": "18.2",
-    "clauseTitle": "Limitation of Liability",
-    "changeType": "Substitution",
-    "primaryCategory": "Limitation of Liability",
-    "secondaryCategories": ["Warranty", "Indemnity"],
-    "severity": "Critical",
-    "buyerImpactSummary": "...",
-    "supplierLikelyIntent": "...",
-    "baselineLanguageSummary": "...",
-    "revisedLanguageSummary": "...",
-    "whatChanged": "...",
-    "whyItMatters": "...",
-    "severityRationale": "...",
-    "recommendedAction": "Reject",
-    "fallbackPosition": "...",
-    "suggestedCounterLanguage": "...",
-    "internalReviewers": ["Legal", "Procurement"]
+    "clauseReference": "3.5.1",
+    "clauseTitle": "Drawing Review",
+    "primaryCategory": "Delivery/Schedule",
+    "severity": "Critical|High|Medium|Low",
+    "problem": "One line, active voice",
+    "action": "One line: what buyer should do",
+    "details": {
+      "whatChanged": "max 2 lines",
+      "whyItMatters": "max 2 lines",
+      "whatToDo": "max 2 lines",
+      "counterLanguage": "suggested counter wording",
+      "confidence": "High|Medium|Low",
+      "marketContext": "Common supplier position|More aggressive than typical|Unusual / high-risk deviation"
+    }
   }],
   "riskSummary": {
-    "byCategory": [{ "category": "Limitation of Liability", "risk": "Critical" }],
-    "tradableIssues": ["..."],
-    "legalEscalation": ["..."],
-    "businessDecisions": ["..."],
-    "negotiationNotes": "..."
+    "whereTheyrePushing": [{ "area": "Schedule", "level": "High|Medium|Low" }],
+    "whereYoureSafe": ["short items"],
+    "whereToPushBack": ["top 2-3 category or theme names"],
+    "negotiationNotes": "Optional 1 sentence only if negotiationPlan is empty; otherwise leave empty string",
+    "negotiationPlan": {
+      "context": "2-4 sentences: parties, leverage, overall posture — not a wall of text",
+      "items": [
+        {
+          "severity": "Critical|High|Medium|Low",
+          "headline": "Short label e.g. Tariff pass-through",
+          "detail": "What to do in the room; reference trades or issues by theme"
+        }
+      ],
+      "checklist": ["before-signing items: appendices, studies, approvals"]
+    }
+  },
+  "tradeStrategy": {
+    "tradeMap": [
+      {
+        "topic": "short theme e.g. Tariffs, Acceptance, Guaranty",
+        "give": "what buyer might concede",
+        "get": "what buyer must get in return",
+        "severity": "Critical|High|Medium|Low — must match how you rated the underlying risk in issues[]",
+        "linkedIssueIds": ["001", "003"]
+      }
+    ],
+    "batnaTable": [
+      {
+        "topic": "short row label e.g. Acceptance, Liability cap, LDs",
+        "theirAsk": "supplier redline / what they are demanding (one line)",
+        "ourTarget": "buyer's ideal outcome for this topic",
+        "ourWalkAway": "minimum acceptable / walk-away boundary if supplier will not move",
+        "ourBatna": "buyer's best alternative if this deal fails — timing, cost, alternate supplier or scope",
+        "leverageNote": "one line: how to use BATNA or walk-away in the conversation"
+      }
+    ]
   }
 }`;
 
-/** Shorter instructions + fewer issues — default for local/testing (faster, cheaper). */
-const SYSTEM_PROMPT_QUICK = `You review supplier-redlined industrial/OEM supply contracts (e.g. transformers, switchgear). Flag edits that materially hurt the buyer.
+const SYSTEM_PROMPT_QUICK = `Same role and tone as full analysis, faster scan.
 
-Rules: At most 8 issues total. One short sentence per string field (two max for buyerImpactSummary). Skip minor wording. Same categories and severities as a full review.
+${OUTPUT_RULES}
 
-JSON rules: Use double quotes only. Inside every string value, escape " as \\" and line breaks as \\n — the output must be one parseable JSON object with no raw newlines inside strings.
+At most 8 issues. Shorter strings everywhere. Include 3–5 batnaTable rows (same fields, terse text).
 
-Return ONLY valid JSON, no markdown, no preamble:
+Return ONLY valid JSON (same schema as full mode):
 {
   "executiveSummary": {
     "overallRisk": "Critical|High|Medium|Low",
-    "supplierPosture": "one short paragraph",
-    "top5Issues": ["...", "...", "...", "...", "..."],
-    "recommendedActions": ["...", "...", "..."]
+    "oneLineBlunt": "one sentence",
+    "ifYouDoNothing": ["bullet", "bullet", "bullet"],
+    "top3MustFix": [
+      { "clauseReference": "x", "title": "x", "problem": "one line", "action": "one line" }
+    ],
+    "cumulativeRiskNote": ""
   },
   "issues": [{
     "issueId": "001",
-    "clauseReference": "18.2",
-    "clauseTitle": "Limitation of Liability",
-    "changeType": "Substitution",
-    "primaryCategory": "Limitation of Liability",
-    "secondaryCategories": ["Warranty"],
-    "severity": "Critical",
-    "buyerImpactSummary": "...",
-    "supplierLikelyIntent": "...",
-    "baselineLanguageSummary": "...",
-    "revisedLanguageSummary": "...",
-    "whatChanged": "...",
-    "whyItMatters": "...",
-    "severityRationale": "...",
-    "recommendedAction": "Reject",
-    "fallbackPosition": "...",
-    "suggestedCounterLanguage": "...",
-    "internalReviewers": ["Legal"]
+    "clauseReference": "",
+    "clauseTitle": "",
+    "primaryCategory": "",
+    "severity": "High",
+    "problem": "",
+    "action": "",
+    "details": {
+      "whatChanged": "",
+      "whyItMatters": "",
+      "whatToDo": "",
+      "counterLanguage": "",
+      "confidence": "Medium",
+      "marketContext": "Common supplier position"
+    }
   }],
   "riskSummary": {
-    "byCategory": [{ "category": "Limitation of Liability", "risk": "Critical" }],
-    "tradableIssues": ["..."],
-    "legalEscalation": ["..."],
-    "businessDecisions": ["..."],
-    "negotiationNotes": "one or two sentences"
+    "whereTheyrePushing": [{ "area": "", "level": "High" }],
+    "whereYoureSafe": [""],
+    "whereToPushBack": [""],
+    "negotiationNotes": "",
+    "negotiationPlan": {
+      "context": "",
+      "items": [{ "severity": "High", "headline": "", "detail": "" }],
+      "checklist": [""]
+    }
+  },
+  "tradeStrategy": {
+    "tradeMap": [
+      {
+        "topic": "",
+        "give": "",
+        "get": "",
+        "severity": "High",
+        "linkedIssueIds": ["001"]
+      }
+    ],
+    "batnaTable": [
+      {
+        "topic": "",
+        "theirAsk": "",
+        "ourTarget": "",
+        "ourWalkAway": "",
+        "ourBatna": "",
+        "leverageNote": ""
+      }
+    ]
   }
 }`;
 
@@ -247,12 +304,152 @@ function parseModelJsonObject(text: string): unknown {
   }
 }
 
+type NormalizedSeverity = "Critical" | "High" | "Medium" | "Low";
+
+function coerceIssueSeverity(raw: string): NormalizedSeverity {
+  const x = raw.trim().toLowerCase();
+  if (x.startsWith("crit")) return "Critical";
+  if (x.startsWith("high")) return "High";
+  if (x.startsWith("low")) return "Low";
+  if (x.startsWith("med")) return "Medium";
+  return "Medium";
+}
+
 function clipForQuickMode(text: string, label: string): string {
   if (fullAnalysisMode || text.length <= quickModeMaxDocChars) return text;
   return (
     text.slice(0, quickModeMaxDocChars) +
     `\n\n[--- ${label} truncated from ${text.length} to ${quickModeMaxDocChars} characters for quick analysis. Set CONTRACT_ANALYSIS_MODE=full to send the whole document. ---]`
   );
+}
+
+function normalizeAnalysis(raw: Record<string, unknown>): Record<string, unknown> {
+  const es = (raw.executiveSummary as Record<string, unknown>) || {};
+  raw.executiveSummary = {
+    ...es,
+    overallRisk: es.overallRisk ?? "Medium",
+    oneLineBlunt:
+      typeof es.oneLineBlunt === "string"
+        ? es.oneLineBlunt
+        : typeof es.supplierPosture === "string"
+          ? es.supplierPosture
+          : "",
+    ifYouDoNothing: Array.isArray(es.ifYouDoNothing)
+      ? es.ifYouDoNothing
+      : [],
+    top3MustFix: Array.isArray(es.top3MustFix) ? es.top3MustFix : [],
+    cumulativeRiskNote:
+      typeof es.cumulativeRiskNote === "string" ? es.cumulativeRiskNote : "",
+  };
+
+  const issuesIn = Array.isArray(raw.issues) ? raw.issues : [];
+  raw.issues = issuesIn.map((item: unknown) => {
+    const i = item as Record<string, unknown>;
+    const d = (i.details as Record<string, unknown>) || {};
+    return {
+      ...i,
+      problem: String(i.problem ?? i.buyerImpactSummary ?? ""),
+      action: String(i.action ?? i.recommendedAction ?? ""),
+      details: {
+        whatChanged: String(d.whatChanged ?? i.whatChanged ?? ""),
+        whyItMatters: String(d.whyItMatters ?? i.whyItMatters ?? ""),
+        whatToDo: String(d.whatToDo ?? ""),
+        counterLanguage: String(
+          d.counterLanguage ?? i.suggestedCounterLanguage ?? i.fallbackPosition ?? ""
+        ),
+        confidence: String(d.confidence ?? "Medium"),
+        marketContext: String(
+          d.marketContext ?? "Common supplier position"
+        ),
+      },
+    };
+  });
+
+  const rs = (raw.riskSummary as Record<string, unknown>) || {};
+  const planRaw = rs.negotiationPlan;
+  let negotiationPlan: Record<string, unknown> | undefined;
+  if (
+    planRaw &&
+    typeof planRaw === "object" &&
+    !Array.isArray(planRaw)
+  ) {
+    const p = planRaw as Record<string, unknown>;
+    const itemsIn = Array.isArray(p.items) ? p.items : [];
+    const items = itemsIn.map((it: unknown) => {
+      const x = it as Record<string, unknown>;
+      return {
+        severity: coerceIssueSeverity(String(x.severity ?? "Medium")),
+        headline: String(x.headline ?? x.title ?? ""),
+        detail: String(x.detail ?? x.body ?? x.text ?? ""),
+      };
+    });
+    const checklistIn = Array.isArray(p.checklist) ? p.checklist : [];
+    const checklist = checklistIn.map((c: unknown) => String(c)).filter(Boolean);
+    const context = String(p.context ?? "");
+    if (
+      context.trim() ||
+      items.some(
+        (i: { headline: string; detail: string }) =>
+          i.headline.trim() || i.detail.trim()
+      ) ||
+      checklist.length > 0
+    ) {
+      negotiationPlan = { context, items, checklist };
+    }
+  }
+
+  raw.riskSummary = {
+    ...rs,
+    whereTheyrePushing: Array.isArray(rs.whereTheyrePushing)
+      ? rs.whereTheyrePushing
+      : [],
+    whereYoureSafe: Array.isArray(rs.whereYoureSafe) ? rs.whereYoureSafe : [],
+    whereToPushBack: Array.isArray(rs.whereToPushBack)
+      ? rs.whereToPushBack
+      : [],
+    negotiationNotes:
+      typeof rs.negotiationNotes === "string" ? rs.negotiationNotes : "",
+    ...(negotiationPlan ? { negotiationPlan } : {}),
+  };
+
+  const ts = (raw.tradeStrategy as Record<string, unknown>) || {};
+  const batnaIn = Array.isArray(ts.batnaTable) ? ts.batnaTable : [];
+  const tradeMapIn = Array.isArray(ts.tradeMap) ? ts.tradeMap : [];
+  raw.tradeStrategy = {
+    tradeMap: tradeMapIn.map((item: unknown) => {
+      const t = item as Record<string, unknown>;
+      const idsRaw = t.linkedIssueIds ?? t.issueIds ?? t.links;
+      const linkedIssueIds = Array.isArray(idsRaw)
+        ? idsRaw.map((id: unknown) => String(id).trim()).filter(Boolean)
+        : [];
+      return {
+        topic: String(t.topic ?? t.theme ?? ""),
+        give: String(t.give ?? ""),
+        get: String(t.get ?? ""),
+        severity: coerceIssueSeverity(
+          String(t.severity ?? t.riskLevel ?? "Medium")
+        ),
+        linkedIssueIds,
+      };
+    }),
+    batnaTable: batnaIn.map((row: unknown) => {
+      const r = row as Record<string, unknown>;
+      return {
+        topic: String(r.topic ?? ""),
+        theirAsk: String(
+          r.theirAsk ?? r.supplierPosition ?? r.supplierAsk ?? ""
+        ),
+        ourTarget: String(r.ourTarget ?? ""),
+        ourWalkAway: String(
+          r.ourWalkAway ?? r.walkAway ?? r.minimumAcceptable ?? ""
+        ),
+        ourBatna: String(r.ourBatna ?? r.buyerBatna ?? ""),
+        leverageNote: String(r.leverageNote ?? r.notes ?? ""),
+      };
+    }),
+  };
+
+  return raw;
 }
 
 export async function POST(req: NextRequest) {
@@ -322,7 +519,9 @@ ${baselineContent ? `BASELINE CONTRACT:\n${baselineContent}\n\n` : ""}REDLINED C
     const raw = response.content
       .map((b) => ("text" in b ? b.text : ""))
       .join("");
-    const analysis = parseModelJsonObject(raw) as {
+    const analysis = normalizeAnalysis(
+      parseModelJsonObject(raw) as Record<string, unknown>
+    ) as {
       issues?: { severity: string }[];
       [key: string]: unknown;
     };
