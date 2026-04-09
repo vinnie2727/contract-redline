@@ -197,10 +197,13 @@ function previewText(text: string, max = 160): string {
   return `${t.slice(0, max).trim()}…`;
 }
 
-/** Smooth estimate 0–90% from elapsed seconds (asymptotic — not real server progress). */
+/**
+ * Smooth estimate from elapsed seconds (asymptotic — not real server progress).
+ * Capped below 100% so the bar does not imply we’re “almost done” while the model still runs.
+ */
 function estimatedProgressPercent(seconds: number): number {
   const raw = 100 * (1 - Math.exp(-seconds / 38));
-  return Math.min(90, Math.round(raw));
+  return Math.min(96, Math.round(raw));
 }
 
 const LOADING_STAGES: { s: number; label: string }[] = [
@@ -466,8 +469,8 @@ export default function Home() {
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
               Progress is an <span className="font-medium text-slate-500">estimate</span>{" "}
-              from elapsed time — the server doesn&apos;t stream live steps. Large
-              files or complex contracts can take several minutes (timeout{" "}
+              from elapsed time — it often sits in the 90s while the AI finishes (not
+              frozen). Large files or complex contracts can take several minutes (timeout{" "}
               {ANALYZE_TIMEOUT_MS / 60_000} min).
             </p>
             <p className="mt-3 font-mono text-xs tabular-nums text-slate-500">
