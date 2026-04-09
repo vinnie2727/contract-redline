@@ -2,8 +2,6 @@
 
 # dependencies
 /node_modules
-/contract-redline-v2/node_modules
-/contract-redline-v2/.next
 /.pnp
 .pnp.*
 .yarn/*
