@@ -8,16 +8,6 @@ const basePath = "/SMUD-contract-analyzer-v2";
 
 const nextConfig: NextConfig = {
   basePath,
-  async redirects() {
-    return [
-      {
-        source: "/",
-        destination: `${basePath}/`,
-        permanent: false,
-        basePath: false,
-      },
-    ];
-  },
   serverExternalPackages: [
     "@anthropic-ai/sdk",
     "mammoth",

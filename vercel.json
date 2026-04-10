@@ -3,15 +3,5 @@
     "app/api/analyze/route.ts": {
       "maxDuration": 300
     }
-  },
-  "rewrites": [
-    {
-      "source": "/SMUD-contract-analyzer-v2",
-      "destination": "https://contract-redline.vercel.app/SMUD-contract-analyzer-v2"
-    },
-    {
-      "source": "/SMUD-contract-analyzer-v2/:path*",
-      "destination": "https://contract-redline.vercel.app/SMUD-contract-analyzer-v2/:path*"
-    }
-  ]
+  }
 }
