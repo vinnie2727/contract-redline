@@ -44,7 +44,7 @@ export async function proxy(req: NextRequest) {
     const pass = params.get("pass") ?? "";
 
     if (user === expectedUser && pass === expectedPass) {
-      const res = NextResponse.redirect(new URL(BASE, req.url));
+      const res = NextResponse.redirect(new URL(BASE, req.url), 303);
       res.cookies.set(COOKIE_NAME, token, {
         httpOnly: true,
         sameSite: "lax",
