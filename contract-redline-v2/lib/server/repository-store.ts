@@ -221,6 +221,18 @@ export function addClauseRecord(record: Omit<ClauseRecord, "id" | "createdAt">):
   return r;
 }
 
+export function deleteContract(id: string): boolean {
+  const contracts = getContracts();
+  const idx = contracts.findIndex((c) => c.id === id);
+  if (idx === -1) return false;
+  contracts.splice(idx, 1);
+  const clauses = getClauses();
+  for (let i = clauses.length - 1; i >= 0; i--) {
+    if (clauses[i].contractId === id) clauses.splice(i, 1);
+  }
+  return true;
+}
+
 export function filterContracts(
   list: Contract[],
   q: string,

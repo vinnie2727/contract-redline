@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { publicBasePath } from "@/lib/config";
 import type { ClauseRecord, Contract } from "@/lib/types/repository";
 import { TypePill } from "@/components/repository/TypePill";
@@ -10,10 +10,26 @@ import { StatusPill } from "@/components/repository/StatusPill";
 
 export default function ContractDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = String(params.id || "");
   const [contract, setContract] = useState<Contract | null>(null);
   const [clauses, setClauses] = useState<ClauseRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!confirm("Delete this contract and all its clause records?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${publicBasePath}/api/contracts/${id}`, { method: "DELETE" });
+      if (res.ok) router.push("/repository");
+      else alert("Failed to delete");
+    } catch {
+      alert("Failed to delete");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -99,9 +115,17 @@ export default function ContractDetailPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <h1 className="text-xl font-bold text-[#1a2942]">{contract.contractName}</h1>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <TypePill type={contract.contractType} />
                 <StatusPill status={contract.status} />
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="ml-2 text-xs font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
               </div>
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">

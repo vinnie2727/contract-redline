@@ -12,6 +12,7 @@ export default function RepositoryListPage() {
   const [typeFilter, setTypeFilter] = useState<"all" | ContractType>("all");
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -26,7 +27,18 @@ export default function RepositoryListPage() {
         .finally(() => setLoading(false));
     }, 200);
     return () => clearTimeout(t);
-  }, [q, typeFilter]);
+  }, [q, typeFilter, refreshKey]);
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Delete "${name}"?`)) return;
+    try {
+      const res = await fetch(`${publicBasePath}/api/contracts/${id}`, { method: "DELETE" });
+      if (res.ok) setRefreshKey((k) => k + 1);
+      else alert("Failed to delete");
+    } catch {
+      alert("Failed to delete");
+    }
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100">
@@ -134,6 +146,7 @@ export default function RepositoryListPage() {
                   <th className="px-3 py-2.5 text-[10px] font-bold uppercase text-slate-500 w-20">
                     Status
                   </th>
+                  <th className="px-3 py-2.5 w-10"></th>
                 </tr>
               </thead>
               <tbody>
@@ -165,6 +178,16 @@ export default function RepositoryListPage() {
                     </td>
                     <td className="px-3 py-2.5">
                       <StatusPill status={c.status} />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(c.id, c.contractName); }}
+                        className="text-[10px] text-red-400 hover:text-red-600 font-semibold"
+                        title="Delete contract"
+                      >
+                        ✕
+                      </button>
                     </td>
                   </tr>
                 ))}
