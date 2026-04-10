@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { publicBasePath } from "@/lib/config";
@@ -20,6 +20,8 @@ const VALUE_BANDS: ContractValueBand[] = [
 export default function AddContractPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     contractName: "",
     supplierName: "",
@@ -61,6 +63,7 @@ export default function AddContractPage() {
           signedDate: form.signedDate,
           status: form.status,
           notes: form.notes || undefined,
+          fileUrl: file ? file.name : undefined,
         }),
       });
       const data = await res.json();
@@ -259,9 +262,44 @@ export default function AddContractPage() {
                 />
               </div>
             </div>
-            <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-500">
-              📄 Attach signed contract (PDF, Word — optional, reference only; not parsed in v1)
+            <div
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const f = e.dataTransfer.files?.[0];
+                if (f) setFile(f);
+              }}
+              className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-500 cursor-pointer hover:border-blue-300 transition-all"
+            >
+              {file ? (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-base">📎</span>
+                  <span className="font-semibold text-slate-700">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+                    className="text-red-400 hover:text-red-600 ml-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="text-lg mb-1">📄</div>
+                  <div>Click or drag to attach signed contract</div>
+                  <div className="text-slate-400 mt-1">PDF, Word (.doc, .docx) — optional</div>
+                </>
+              )}
             </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); }}
+            />
             <div className="flex justify-end gap-2 pt-2">
               <Link
                 href="/repository"

@@ -28,10 +28,5 @@ export function normalizeAskForFamily(
     return { value: Number(mult[1]), unit: "multiplier" };
   }
 
-  let hash = 0;
-  for (let i = 0; i < t.length; i++) {
-    hash = (hash * 31 + t.charCodeAt(i)) >>> 0;
-  }
-  const score = 40 + (hash % 61);
-  return { value: score, unit: "score" };
+  return null;
 }

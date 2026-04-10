@@ -21,10 +21,10 @@ export interface BenchmarkIssueInput {
 
 function assignBand(normalizedPosition: number): AcceptabilityBand {
   const p = normalizedPosition;
-  if (p >= 0.37 && p <= 0.63) return 1;
-  if ((p >= 0.25 && p < 0.37) || (p > 0.63 && p <= 0.75)) return 2;
-  if ((p >= 0.15 && p < 0.25) || (p > 0.75 && p <= 0.85)) return 3;
-  if ((p >= 0.05 && p < 0.15) || (p > 0.85 && p <= 0.95)) return 4;
+  if (p >= 0.37) return 1;
+  if (p >= 0.25) return 2;
+  if (p >= 0.15) return 3;
+  if (p >= 0.05) return 4;
   return 5;
 }
 

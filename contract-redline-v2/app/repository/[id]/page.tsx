@@ -154,6 +154,12 @@ export default function ContractDetailPage() {
                 <dd className="text-slate-800">{contract.dealType || "—"}</dd>
               </div>
             </dl>
+            {contract.fileUrl ? (
+              <div className="mt-4 border-t border-slate-100 pt-4 flex items-center gap-2 text-sm text-slate-600">
+                <span>📎</span>
+                <span className="font-semibold">{contract.fileUrl}</span>
+              </div>
+            ) : null}
             {contract.notes ? (
               <p className="mt-4 text-sm text-slate-600 border-t border-slate-100 pt-4">
                 {contract.notes}
