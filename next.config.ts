@@ -11,27 +11,46 @@ const basePath = "/SMUD-contract-analyzer";
 const smudV2Origin =
   process.env.SMUD_V2_ORIGIN?.trim().replace(/\/+$/, "") || "";
 
+/** Full origin of the contract-repo deployment. No trailing slash. */
+const repoOrigin =
+  process.env.SMUD_REPO_ORIGIN?.trim().replace(/\/+$/, "") || "";
+
 const nextConfig: NextConfig = {
   basePath,
-  /**
-   * Same-domain v2 URL: contract.veritasic.com/SMUD-contract-analyzer-v2
-   * Requires a separate Vercel project for `contract-redline-v2` and SMUD_V2_ORIGIN
-   * set on *this* (v1) project to that deployment’s origin.
-   */
   async rewrites() {
-    if (!smudV2Origin) return [];
-    return [
-      {
-        source: "/SMUD-contract-analyzer-v2",
-        destination: `${smudV2Origin}/SMUD-contract-analyzer-v2`,
-        basePath: false,
-      },
-      {
-        source: "/SMUD-contract-analyzer-v2/:path*",
-        destination: `${smudV2Origin}/SMUD-contract-analyzer-v2/:path*`,
-        basePath: false,
-      },
-    ];
+    const rules: { source: string; destination: string; basePath: false }[] = [];
+
+    if (smudV2Origin) {
+      rules.push(
+        {
+          source: "/SMUD-contract-analyzer-v2",
+          destination: `${smudV2Origin}/SMUD-contract-analyzer-v2`,
+          basePath: false,
+        },
+        {
+          source: "/SMUD-contract-analyzer-v2/:path*",
+          destination: `${smudV2Origin}/SMUD-contract-analyzer-v2/:path*`,
+          basePath: false,
+        },
+      );
+    }
+
+    if (repoOrigin) {
+      rules.push(
+        {
+          source: "/SMUD-contract-repo",
+          destination: `${repoOrigin}/SMUD-contract-repo`,
+          basePath: false,
+        },
+        {
+          source: "/SMUD-contract-repo/:path*",
+          destination: `${repoOrigin}/SMUD-contract-repo/:path*`,
+          basePath: false,
+        },
+      );
+    }
+
+    return rules;
   },
   async redirects() {
     return [
