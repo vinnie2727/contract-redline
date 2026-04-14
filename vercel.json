@@ -1,4 +1,14 @@
 {
+  "rewrites": [
+    {
+      "source": "/SMUD-contract-repo",
+      "destination": "https://contract-repo.vercel.app/SMUD-contract-repo"
+    },
+    {
+      "source": "/SMUD-contract-repo/:path*",
+      "destination": "https://contract-repo.vercel.app/SMUD-contract-repo/:path*"
+    }
+  ],
   "functions": {
     "app/api/analyze/route.ts": {
       "maxDuration": 300
