@@ -12,8 +12,7 @@ const smudV2Origin =
   process.env.SMUD_V2_ORIGIN?.trim().replace(/\/+$/, "") || "";
 
 /** Full origin of the contract-repo deployment. No trailing slash. */
-const repoOrigin =
-  process.env.SMUD_REPO_ORIGIN?.trim().replace(/\/+$/, "") || "";
+const repoOrigin = "https://contract-repo.vercel.app";
 
 const nextConfig: NextConfig = {
   basePath,
